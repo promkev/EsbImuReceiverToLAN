@@ -386,18 +386,15 @@ void processHidData(SlimeUdpClient *udpClient,
     if (vt) {
       vt->lastSendDataTime = millis();
 
-      // PPS Reduction: Alternate between Rotation and Acceleration
-      // instead of sending both every frame (halves packet pressure)
-      if (vt->updateCounter % 2 == 0) {
-        if (hasRotation) {
-          udpClient->sendRotation(trackerIndex, qx, qy, qz, qw);
-        }
-      } else {
-        if (hasAccel) {
-          udpClient->sendAcceleration(trackerIndex, ax, ay, az);
-        }
+      // Send both rotation and acceleration every frame. Each send function
+      // enforces its own 4 ms rate cap and movement threshold, so they
+      // self-regulate without the alternation that previously halved each rate.
+      if (hasRotation) {
+        udpClient->sendRotation(trackerIndex, qx, qy, qz, qw);
       }
-      vt->updateCounter++;
+      if (hasAccel) {
+        udpClient->sendAcceleration(trackerIndex, ax, ay, az);
+      }
 
       if (hasBattery && batt != -1) {
         // Battery reporting is less time sensitive.
@@ -413,10 +410,6 @@ void processHidData(SlimeUdpClient *udpClient,
           udpClient->sendBattery(trackerIndex, voltage, percentage);
         }
       }
-
-      // Staggering: Give the Wi-Fi driver time to handle each packet
-      // to prevent filling the internal hardware queue too fast.
-      delayMicroseconds(400);
     }
   }
 }

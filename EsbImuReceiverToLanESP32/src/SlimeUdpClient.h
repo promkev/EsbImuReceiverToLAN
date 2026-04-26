@@ -23,9 +23,10 @@ struct VirtualTracker {
     // Previous state for movement thresholding
     float last_qx = 0, last_qy = 0, last_qz = 0, last_qw = 1.0f;
     float last_ax = 0, last_ay = 0, last_az = 0;
-    uint32_t lastMovementPacketTime = 0;
+    // Separate rate caps so rotation and acceleration can both be sent every frame.
+    uint32_t lastRotationPacketTime = 0;
+    uint32_t lastAccelPacketTime = 0;
     uint32_t lastTimeoutTime = 0;
-    uint8_t updateCounter = 0;
 
     WiFiUDP udp;
 };

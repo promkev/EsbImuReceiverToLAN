@@ -258,10 +258,37 @@ public partial class MainPage : ContentPage
         UDPHandler.ForceUDPClientsToDoHandshake();
     }
 
+    private void PpsEntry_TextChanged(object? sender, TextChangedEventArgs e)
+    {
+        ApplyPps();
+        SavePps();
+    }
+
+    private void ApplyPps()
+    {
+        if (int.TryParse(ppsEntry.Text?.Trim(), out int pps) && pps > 0)
+            SlimeImuProtocol.SlimeProtocol.Tracker.TargetPacketsPerSecond = pps;
+        else
+            SlimeImuProtocol.SlimeProtocol.Tracker.TargetPacketsPerSecond = 0; // unlimited
+    }
+
+    private void SavePps()
+    {
+        var ppsPath = Path.Combine(FileSystem.AppDataDirectory, "pps.txt");
+        File.WriteAllText(ppsPath, ppsEntry.Text ?? "");
+    }
+
     private void LoadConfig()
     {
         var configPath = Path.Combine(FileSystem.AppDataDirectory, "config.txt");
         if (File.Exists(configPath))
             ipEntry.Text = File.ReadAllText(configPath);
+
+        var ppsPath = Path.Combine(FileSystem.AppDataDirectory, "pps.txt");
+        if (File.Exists(ppsPath))
+        {
+            ppsEntry.Text = File.ReadAllText(ppsPath).Trim();
+            ApplyPps();
+        }
     }
 }
