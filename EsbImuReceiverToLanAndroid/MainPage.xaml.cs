@@ -115,10 +115,12 @@ public partial class MainPage : ContentPage
         var total = snapshot.Dongles.Sum(d => d.Trackers.Count);
         trackerSummaryLabel.Text = $"{total} tracker(s) across {snapshot.Dongles.Count} dongle(s)";
 
+        var sw = Stopwatch.StartNew();
         var orderedTrackers = snapshot.Dongles
             .SelectMany(d => d.Trackers.OrderBy(t => t.Id).Select(t => (Dongle: d, Tracker: t)))
             .ToList();
         var signature = string.Join("|", snapshot.Dongles.Select(d => d.DeviceKey + ":" + string.Join(",", d.Trackers.OrderBy(t => t.Id).Select(t => t.Id))));
+        var prepMs = sw.Elapsed.TotalMilliseconds;
 
         if (signature != _lastTopologySignature)
         {
@@ -128,6 +130,7 @@ public partial class MainPage : ContentPage
         }
         else
         {
+            sw.Restart();
             for (int i = 0; i < orderedTrackers.Count && i < _trackerRowCache.Count; i++)
             {
                 var (dongle, t) = orderedTrackers[i];
@@ -145,6 +148,8 @@ public partial class MainPage : ContentPage
 
                 row.BackgroundColor = moving ? Color.FromArgb("#254ade80") : Colors.Transparent; // subtle green tint when moving
             }
+            var loopMs = sw.Elapsed.TotalMilliseconds;
+            Console.WriteLine($"[PERF] UpdateTrackerUI prep={prepMs:F2}ms loop={loopMs:F2}ms rows={_trackerRowCache.Count}");
         }
     }
 

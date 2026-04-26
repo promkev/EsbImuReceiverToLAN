@@ -15,9 +15,14 @@ public class TrackerRotationView : GraphicsView
         set => SetValue(TrackerRotationProperty, value);
     }
 
+    private const float RotationInvalidateThreshold = 0.001f;
+
     private static void OnRotationChanged(BindableObject bindable, object oldValue, object newValue)
     {
-        if (bindable is TrackerRotationView view)
+        if (bindable is not TrackerRotationView view) return;
+        if (oldValue is not Quaternion oldQ || newValue is not Quaternion newQ) return;
+        // Skip invalidate if rotation barely changed (reduces persistent redraw storm)
+        if (Quaternion.Dot(oldQ, newQ) < 1f - RotationInvalidateThreshold)
             view.Invalidate();
     }
 

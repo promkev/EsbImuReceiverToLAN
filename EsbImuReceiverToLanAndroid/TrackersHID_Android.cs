@@ -593,13 +593,9 @@ namespace EsbImuReceiverToLan.Tracking.Trackers.HID
             get { lock (openDevices) return openDevices.Count; }
         }
 
-        private static int _snapshotCount;
-        private static long _totalSnapshotTicks;
-
         public TrackerSnapshot? GetTrackerSnapshot()
         {
             if (disposed) return null;
-            var sw = Stopwatch.StartNew();
             var snapshot = new TrackerSnapshot();
             lock (openDevices)
             lock (devicesByHID)
@@ -637,16 +633,6 @@ namespace EsbImuReceiverToLan.Tracking.Trackers.HID
                     if (group.Trackers.Count > 0)
                         snapshot.Dongles.Add(group);
                 }
-            }
-            sw.Stop();
-            int count = Interlocked.Increment(ref _snapshotCount);
-            long ticks = Interlocked.Add(ref _totalSnapshotTicks, sw.ElapsedTicks);
-            if (count >= 20)
-            {
-                double avgMs = (ticks / (double)count) / TimeSpan.TicksPerMillisecond;
-                Console.WriteLine($"[PERF] GetTrackerSnapshot avg {avgMs:F3} ms over {count} calls");
-                Interlocked.Exchange(ref _snapshotCount, 0);
-                Interlocked.Exchange(ref _totalSnapshotTicks, 0);
             }
             return snapshot;
         }
