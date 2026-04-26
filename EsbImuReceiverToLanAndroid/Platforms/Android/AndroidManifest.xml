@@ -11,7 +11,8 @@
     <application android:label="EsbReceiverToLanAndroid" android:icon="@mipmap/ic_launcher">
 <service android:name=".Platforms.Android.Services.TrackerListenerService"
          android:enabled="true"
-         android:exported="true" />
+         android:exported="true"
+         android:foregroundServiceType="dataSync" />
 	<receiver
     android:name="com.SebaneStudios.EsbReceiverToLanAndroid.TrackerUsbReceiver"
     android:exported="true">
