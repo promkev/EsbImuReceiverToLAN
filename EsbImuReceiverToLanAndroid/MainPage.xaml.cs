@@ -4,6 +4,7 @@ using Microsoft.Maui.ApplicationModel;
 using EsbReceiverToLanAndroid.Platforms.Android.Services;
 using EsbReceiverToLanAndroid.Views;
 using SlimeImuProtocol.SlimeVR;
+using System.Diagnostics;
 using System.Net;
 using System.Numerics;
 
@@ -79,10 +80,21 @@ public partial class MainPage : ContentPage
         });
     }
 
+    private static readonly Stopwatch _refreshSw = new();
+
     private void RefreshTrackerList()
     {
+        _refreshSw.Restart();
         var snapshot = TrackerListenerService.Instance?.GetTrackerSnapshot();
-        MainThread.BeginInvokeOnMainThread(() => UpdateTrackerUI(snapshot));
+        var snapshotMs = _refreshSw.Elapsed.TotalMilliseconds;
+
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            _refreshSw.Restart();
+            UpdateTrackerUI(snapshot);
+            var uiMs = _refreshSw.Elapsed.TotalMilliseconds;
+            Console.WriteLine($"[PERF] Refresh cycle: snapshot={snapshotMs:F2}ms ui={uiMs:F2}ms trackers={(snapshot?.Dongles.Sum(d => d.Trackers.Count) ?? 0)}");
+        });
     }
 
     private void UpdateTrackerUI(TrackerSnapshot? snapshot)
