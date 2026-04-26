@@ -267,9 +267,9 @@ public partial class MainPage : ContentPage
     private void ApplyPps()
     {
         if (int.TryParse(ppsEntry.Text?.Trim(), out int pps) && pps > 0)
-            SlimeImuProtocol.SlimeProtocol.Tracker.TargetPacketsPerSecond = pps;
+            SlimeImuProtocol.Utility.FunctionSequenceManager.PacketsAllowedPerSecond = pps;
         else
-            SlimeImuProtocol.SlimeProtocol.Tracker.TargetPacketsPerSecond = 0; // unlimited
+            SlimeImuProtocol.Utility.FunctionSequenceManager.PacketsAllowedPerSecond = 0; // unlimited
     }
 
     private void SavePps()
