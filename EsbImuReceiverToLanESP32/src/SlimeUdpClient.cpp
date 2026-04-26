@@ -76,6 +76,8 @@ void SlimeUdpClient::onWiFiConnect() {
       _trackers[i].lastHeartbeatTime = millis();
       _trackers[i].lastSendDataTime = 0;
       _trackers[i].lastBatterySendTime = 0;
+      _trackers[i].lastRotationPacketTime = 0;
+      _trackers[i].lastAccelPacketTime = 0;
       _trackers[i].handshakeRetryCount = 0;
       _trackers[i].isInitialized = false;
       _trackers[i].handshakeOngoing = true;
@@ -488,21 +490,17 @@ void SlimeUdpClient::sendRotation(uint8_t trackerIndex, float qx, float qy,
 
   VirtualTracker &vt = _trackers[trackerIndex];
 
-  // Rate Cap (Optimization)
-  // Ensure we don't send data more than once every 4ms (Allows 100Hz Rotation +
-  // 100Hz Accel interleaved)
-  if (millis() - vt.lastMovementPacketTime < 4) {
+  // Rate cap: max 250 Hz per stream (4 ms minimum between rotation packets).
+  if (millis() - vt.lastRotationPacketTime < 4) {
     return;
   }
 
-  // Movement Thresholding for Rotation (Dot product of 4D vectors)
-  // If the change is small enough, and we sent a packet recently, skip this
-  // one.
+  // Skip tiny changes unless 500 ms have passed since last send.
   float dot = (qx * vt.last_qx) + (qy * vt.last_qy) + (qz * vt.last_qz) +
               (qw * vt.last_qw);
   float diff = 1.0f - abs(dot);
   if (diff < MOVEMENT_THRESHOLD_QUAT &&
-      (millis() - vt.lastMovementPacketTime < 500)) {
+      (millis() - vt.lastRotationPacketTime < 500)) {
     return;
   }
 
@@ -576,7 +574,7 @@ void SlimeUdpClient::sendRotation(uint8_t trackerIndex, float qx, float qy,
     vt.last_qy = qy;
     vt.last_qz = qz;
     vt.last_qw = qw;
-    vt.lastMovementPacketTime = millis();
+    vt.lastRotationPacketTime = millis();
   }
 }
 
@@ -588,18 +586,18 @@ void SlimeUdpClient::sendAcceleration(uint8_t trackerIndex, float ax, float ay,
 
   VirtualTracker &vt = _trackers[trackerIndex];
 
-  // Rate Cap (Optimization)
-  if (millis() - vt.lastMovementPacketTime < 4) {
+  // Rate cap: max 250 Hz per stream (4 ms minimum between accel packets).
+  if (millis() - vt.lastAccelPacketTime < 4) {
     return;
   }
 
-  // Movement Thresholding for Acceleration (Euclidean distance)
+  // Skip tiny changes unless 500 ms have passed since last send.
   float dx = ax - vt.last_ax;
   float dy = ay - vt.last_ay;
   float dz = az - vt.last_az;
   float distSq = (dx * dx) + (dy * dy) + (dz * dz);
   if (distSq < (MOVEMENT_THRESHOLD_ACCEL * MOVEMENT_THRESHOLD_ACCEL) &&
-      (millis() - vt.lastMovementPacketTime < 500)) {
+      (millis() - vt.lastAccelPacketTime < 500)) {
     return;
   }
 
@@ -663,7 +661,7 @@ void SlimeUdpClient::sendAcceleration(uint8_t trackerIndex, float ax, float ay,
     vt.last_ax = ax;
     vt.last_ay = ay;
     vt.last_az = az;
-    vt.lastMovementPacketTime = millis();
+    vt.lastAccelPacketTime = millis();
   }
 }
 

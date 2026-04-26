@@ -34,6 +34,21 @@
                 </VerticalStackLayout>
             </Frame>
 
+            <!-- Packet Rate -->
+            <Frame BackgroundColor="{StaticResource Gray900}" BorderColor="{StaticResource Gray600}"
+                   Padding="16" CornerRadius="8">
+                <VerticalStackLayout Spacing="8">
+                    <Label Text="Packet Rate Limit" FontAttributes="Bold" TextColor="{StaticResource Gray200}" />
+                    <Entry x:Name="ppsEntry" Placeholder="Leave blank for unlimited"
+                           Keyboard="Numeric"
+                           PlaceholderColor="{StaticResource Gray500}" TextColor="{StaticResource Gray100}"
+                           BackgroundColor="{StaticResource Gray950}"
+                           TextChanged="PpsEntry_TextChanged" />
+                    <Label Text="Total packets per second across all trackers. Per-tracker rate scales automatically with tracker count. Leave blank or 0 for unlimited."
+                           TextColor="{StaticResource Gray500}" FontSize="11" />
+                </VerticalStackLayout>
+            </Frame>
+
             <!-- Trackers -->
             <Frame BackgroundColor="{StaticResource Gray900}" BorderColor="{StaticResource Gray600}"
                    Padding="16" CornerRadius="8">
