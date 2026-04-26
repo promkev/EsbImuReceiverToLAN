@@ -1,0 +1,94 @@
+name: Android Build
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: microsoft
+          java-version: '17'
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Install MAUI Android workload
+        run: dotnet workload install maui-android
+
+      - name: Restore dependencies
+        run: dotnet restore EsbImuReceiverToLanAndroid/EsbImuReceiverToLanAndroid.csproj
+
+      - name: Build Debug APK
+        run: |
+          dotnet build EsbImuReceiverToLanAndroid/EsbImuReceiverToLanAndroid.csproj \
+            -c Debug \
+            -f net10.0-android \
+            --no-restore
+
+      - name: Upload Debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-apk
+          path: EsbImuReceiverToLanAndroid/bin/Debug/net10.0-android/*.apk
+
+      # Signed release builds require KEYSTORE_BASE64 and KEYSTORE_PASSWORD secrets.
+      # To set them up: encode your keystore with `base64 -w0 smolslimetolan.keystore`
+      # and add the output as KEYSTORE_BASE64, and the keystore password as KEYSTORE_PASSWORD,
+      # in your repository's Settings > Secrets and variables > Actions.
+
+      - name: Decode keystore
+        if: ${{ secrets.KEYSTORE_BASE64 != '' }}
+        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > "${{ github.workspace }}/smolslimetolan.keystore"
+
+      - name: Build Release-Phone APK
+        if: ${{ secrets.KEYSTORE_BASE64 != '' }}
+        run: |
+          dotnet build EsbImuReceiverToLanAndroid/EsbImuReceiverToLanAndroid.csproj \
+            -c Release-Phone \
+            -f net10.0-android \
+            --no-restore \
+            -p:AndroidSigningStore="${{ github.workspace }}/smolslimetolan.keystore" \
+            -p:AndroidSigningKeyPass="${{ secrets.KEYSTORE_PASSWORD }}" \
+            -p:AndroidSigningStorePass="${{ secrets.KEYSTORE_PASSWORD }}"
+
+      - name: Upload Release-Phone APK
+        if: ${{ secrets.KEYSTORE_BASE64 != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-phone-apk
+          path: EsbImuReceiverToLanAndroid/bin/Release-Phone/net10.0-android/*.apk
+
+      - name: Build Release-Quest APK
+        if: ${{ secrets.KEYSTORE_BASE64 != '' }}
+        run: |
+          dotnet build EsbImuReceiverToLanAndroid/EsbImuReceiverToLanAndroid.csproj \
+            -c Release-Quest \
+            -f net10.0-android \
+            --no-restore \
+            -p:AndroidSigningStore="${{ github.workspace }}/smolslimetolan.keystore" \
+            -p:AndroidSigningKeyPass="${{ secrets.KEYSTORE_PASSWORD }}" \
+            -p:AndroidSigningStorePass="${{ secrets.KEYSTORE_PASSWORD }}"
+
+      - name: Upload Release-Quest APK
+        if: ${{ secrets.KEYSTORE_BASE64 != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-quest-apk
+          path: EsbImuReceiverToLanAndroid/bin/Release-Quest/net10.0-android/*.apk
