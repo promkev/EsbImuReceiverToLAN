@@ -1,0 +1,9 @@
+<!-- Copy this file to Directory.Build.props (gitignored) and fill in your local values.
+     Directory.Build.props is picked up automatically by MSBuild for all projects in the tree. -->
+<Project>
+  <PropertyGroup>
+    <AndroidSigningStore>C:\path\to\smolslimetolan.keystore</AndroidSigningStore>
+    <AndroidSigningKeyPass>your-password-here</AndroidSigningKeyPass>
+    <AndroidSigningStorePass>your-password-here</AndroidSigningStorePass>
+  </PropertyGroup>
+</Project>
