@@ -40,7 +40,8 @@ jobs:
           dotnet build EsbImuReceiverToLanAndroid/EsbImuReceiverToLanAndroid.csproj \
             -c Debug \
             -f net10.0-android \
-            --no-restore
+            --no-restore \
+            -p:EmbedAssembliesIntoApk=true
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
