@@ -16,6 +16,10 @@
     <WindowsPackageType>None</WindowsPackageType>
     <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">21.0</SupportedOSPlatformVersion>
     <Configurations>Debug;Release;Release-Phone;Release-Quest</Configurations>
+    <!-- Ensure .NET assemblies stored as .so files are never compressed in the APK.
+         Compressed entries crash the monodroid runtime on launch. -->
+    <EmbedAssembliesIntoApk>true</EmbedAssembliesIntoApk>
+    <AndroidStoreUncompressedFileExtensions>.so</AndroidStoreUncompressedFileExtensions>
   </PropertyGroup>
 
   <!-- ========================= -->
