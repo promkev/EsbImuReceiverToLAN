@@ -16,8 +16,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          submodules: recursive
           fetch-depth: 0
+
+      - name: Fetch submodules (non-shallow)
+        run: |
+          git submodule sync --recursive
+          git submodule update --init --recursive --no-recommend-shallow
 
       - name: Setup Java
         uses: actions/setup-java@v4
