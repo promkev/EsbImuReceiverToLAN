@@ -42,6 +42,12 @@ namespace EsbImuReceiverToLan.Tracking.Trackers.HID
         bool alreadyRunning = false;
         bool disposed = false;
 
+        // --- Profiling ---
+        private static readonly Stopwatch _loopSw = new();
+        private static long _totalLoopTicks;
+        private static int _loopCount;
+        private static long _packetsProcessed;
+
         private readonly HashSet<string> _pendingPermissionRequests = new();
         private UsbPermissionReceiver usbPermissionReceiver;
 
@@ -299,6 +305,7 @@ namespace EsbImuReceiverToLan.Tracking.Trackers.HID
             int[] q = new int[4];
             int[] a = new int[3];
             int[] m = new int[3];
+            long localPackets = 0;
 
             while (!disposed)
             {
@@ -336,9 +343,11 @@ namespace EsbImuReceiverToLan.Tracking.Trackers.HID
                     }
 
                     int packetCount = bytesRead / PACKET_SIZE;
+                    _loopSw.Restart();
+                    long packetsInBatch = 0;
 
                     for (int i = 0; i < packetCount * PACKET_SIZE; i += PACKET_SIZE)
-                                {
+                    {
                                     int packetType = dataReceived[i];
                                     int id = dataReceived[i + 1];
                                     int trackerId = 0; // no extensions in this context
@@ -565,6 +574,20 @@ namespace EsbImuReceiverToLan.Tracking.Trackers.HID
                                     {
                                         tracker.DataTick();
                                     }
+                                    packetsInBatch++;
+                                }
+                                _loopSw.Stop();
+                                Interlocked.Add(ref _totalLoopTicks, _loopSw.ElapsedTicks);
+                                Interlocked.Add(ref _packetsProcessed, packetsInBatch);
+                                int count = Interlocked.Increment(ref _loopCount);
+                                if (count >= 100)
+                                {
+                                    double avgMs = (_totalLoopTicks / (double)count) / TimeSpan.TicksPerMillisecond;
+                                    long pkts = Interlocked.Read(ref _packetsProcessed);
+                                    Console.WriteLine($"[PERF] HID packet loop avg {avgMs:F3} ms over {count} calls ({pkts} packets processed)");
+                                    Interlocked.Exchange(ref _totalLoopTicks, 0);
+                                    Interlocked.Exchange(ref _loopCount, 0);
+                                    Interlocked.Exchange(ref _packetsProcessed, 0);
                                 }
                 }
                 catch (Exception e)
