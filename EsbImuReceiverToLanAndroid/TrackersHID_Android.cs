@@ -13,6 +13,7 @@ using Thread = System.Threading.Thread;
 using Math = System.Math;
 using Exception = System.Exception;
 using System.Threading;
+using System.Diagnostics;
 using Java.Nio;
 using static EsbImuReceiverToLan.Tracking.Trackers.HID.TrackersHID_Android;
 using SlimeImuProtocol;
