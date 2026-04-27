@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using System.Numerics;
+using System.Threading;
 
 namespace EsbReceiverToLanAndroid.Views;
 
@@ -13,9 +15,14 @@ public class TrackerRotationView : GraphicsView
         set => SetValue(TrackerRotationProperty, value);
     }
 
+    private const float RotationInvalidateThreshold = 0.001f;
+
     private static void OnRotationChanged(BindableObject bindable, object oldValue, object newValue)
     {
-        if (bindable is TrackerRotationView view)
+        if (bindable is not TrackerRotationView view) return;
+        if (oldValue is not Quaternion oldQ || newValue is not Quaternion newQ) return;
+        // Skip invalidate if rotation barely changed (reduces persistent redraw storm)
+        if (Quaternion.Dot(oldQ, newQ) < 1f - RotationInvalidateThreshold)
             view.Invalidate();
     }
 
@@ -26,9 +33,12 @@ public class TrackerRotationView : GraphicsView
         Drawable = new TrackerRotationDrawable(this);
     }
 
-    private class TrackerRotationDrawable : IDrawable
-    {
-        private readonly WeakReference<TrackerRotationView> _viewRef;
+        private class TrackerRotationDrawable : IDrawable
+        {
+            private readonly WeakReference<TrackerRotationView> _viewRef;
+            private static int _drawCount;
+            private static long _totalDrawTicks;
+            private static readonly Stopwatch _sw = new();
 
         // Cube vertices (centered at origin, ±1)
         private static readonly Vector3[] CubeVertices =
@@ -52,6 +62,8 @@ public class TrackerRotationView : GraphicsView
 
         public void Draw(ICanvas canvas, RectF dirtyRect)
         {
+            _sw.Restart();
+
             if (!_viewRef.TryGetTarget(out var view)) return;
 
             var q = view.TrackerRotation;
@@ -89,6 +101,17 @@ public class TrackerRotationView : GraphicsView
                 canvas.StrokeSize = 1.5f;
                 canvas.StrokeLineCap = LineCap.Round;
                 canvas.DrawLine(projected[a], projected[b]);
+            }
+
+            _sw.Stop();
+            int count = Interlocked.Increment(ref _drawCount);
+            long ticks = Interlocked.Add(ref _totalDrawTicks, _sw.ElapsedTicks);
+            if (count >= 50)
+            {
+                double avgMs = (ticks / (double)count) / TimeSpan.TicksPerMillisecond;
+                Console.WriteLine($"[PERF] TrackerRotationView.Draw avg {avgMs:F3} ms over {count} calls");
+                Interlocked.Exchange(ref _drawCount, 0);
+                Interlocked.Exchange(ref _totalDrawTicks, 0);
             }
         }
     }
