@@ -16,21 +16,23 @@
     <WindowsPackageType>None</WindowsPackageType>
     <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">21.0</SupportedOSPlatformVersion>
     <Configurations>Debug;Release;Release-Phone;Release-Quest</Configurations>
+    <!-- Ensure .NET assemblies stored as .so files are never compressed in the APK.
+         Compressed entries crash the monodroid runtime on launch. -->
+    <EmbedAssembliesIntoApk>true</EmbedAssembliesIntoApk>
+    <AndroidStoreUncompressedFileExtensions>.so</AndroidStoreUncompressedFileExtensions>
   </PropertyGroup>
 
   <!-- ========================= -->
   <!-- Phone Release Build -->
   <!-- ========================= -->
+  <!-- AndroidSigningStore, AndroidSigningKeyPass, AndroidSigningStorePass must be
+       passed via MSBuild properties (e.g. -p:AndroidSigningStore=...) or set locally
+       in a Directory.Build.props that is not checked in. -->
   <PropertyGroup Condition="&#xD;&#xA;    '$(Configuration)'=='Release-Phone' &#xD;&#xA;    and '$(TargetFrameworkIdentifier)'=='android'">
     <AndroidKeyStore>true</AndroidKeyStore>
-    <AndroidSigningStore>I:\Visual Studio\EsbImuReceiverToLAN\smolslimetolan.keystore</AndroidSigningStore>
     <AndroidSigningKeyAlias>smolslimetolan</AndroidSigningKeyAlias>
-    <AndroidSigningKeyPass>2b703a48-a227-455f-9a10-66cbbac19535</AndroidSigningKeyPass>
-    <AndroidSigningStorePass>2b703a48-a227-455f-9a10-66cbbac19535</AndroidSigningStorePass>
     <AndroidPackageFormat>apk</AndroidPackageFormat>
     <AndroidLinkMode>None</AndroidLinkMode>
-
-    <!-- Use full permissions manifest -->
     <AndroidManifest>Platforms/Android/AndroidManifest.xml</AndroidManifest>
   </PropertyGroup>
 
@@ -39,14 +41,9 @@
   <!-- ========================= -->
   <PropertyGroup Condition="&#xD;&#xA;    '$(Configuration)'=='Release-Quest' &#xD;&#xA;    and '$(TargetFrameworkIdentifier)'=='android'">
     <AndroidKeyStore>true</AndroidKeyStore>
-    <AndroidSigningStore>I:\Visual Studio\EsbImuReceiverToLAN\smolslimetolan.keystore</AndroidSigningStore>
     <AndroidSigningKeyAlias>smolslimetolan</AndroidSigningKeyAlias>
-    <AndroidSigningKeyPass>2b703a48-a227-455f-9a10-66cbbac19535</AndroidSigningKeyPass>
-    <AndroidSigningStorePass>2b703a48-a227-455f-9a10-66cbbac19535</AndroidSigningStorePass>
     <AndroidPackageFormat>apk</AndroidPackageFormat>
     <AndroidLinkMode>None</AndroidLinkMode>
-
-    <!-- Use Quest-specific manifest -->
     <AndroidManifest>Platforms/Android/AndroidManifest.Quest.xml</AndroidManifest>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(TargetFramework)|$(Platform)'=='Debug|net10.0-android|AnyCPU'">

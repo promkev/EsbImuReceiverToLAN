@@ -137,7 +137,10 @@ public class TrackerListenerService : Service {
             .SetOngoing(true)                 // keeps the notification persistent
             .Build();
 
-        StartForeground(1, notification);
+        if (Build.VERSION.SdkInt >= BuildVersionCodes.Q)
+            StartForeground(1, notification, ForegroundService.TypeDataSync);
+        else
+            StartForeground(1, notification);
     }
 
     public override StartCommandResult OnStartCommand(Intent intent, StartCommandFlags flags, int startId) {
