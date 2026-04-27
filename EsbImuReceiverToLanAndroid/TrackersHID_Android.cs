@@ -571,10 +571,7 @@ namespace EsbImuReceiverToLan.Tracking.Trackers.HID
                                         tracker.SetMagVector(magnetometer);
                                     }
 
-                                    if (packetType == 1 || packetType == 2 || packetType == 4)
-                                    {
-                                        tracker.DataTick();
-                                    }
+                                    // DataTick() removed in matiaspalmac SlimeImuProtocol fork (was no-op)
                                     packetsInBatch++;
                                 }
                                 _loopSw.Stop();
