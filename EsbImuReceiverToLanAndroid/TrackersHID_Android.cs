@@ -13,6 +13,7 @@ using Thread = System.Threading.Thread;
 using Math = System.Math;
 using Exception = System.Exception;
 using System.Threading;
+using System.Diagnostics;
 using Java.Nio;
 using static EsbImuReceiverToLan.Tracking.Trackers.HID.TrackersHID_Android;
 using SlimeImuProtocol;
@@ -41,6 +42,14 @@ namespace EsbImuReceiverToLan.Tracking.Trackers.HID
         private readonly Dictionary<int, Tracker> activeTrackers = new();
         bool alreadyRunning = false;
         bool disposed = false;
+
+        // --- Profiling ---
+        private static readonly Stopwatch _loopSw = new();
+        private static long _totalLoopTicks;
+        private static int _loopCount;
+        private static long _packetsProcessed;
+        private static long _totalAllocBytes;
+        private static long _prevAllocBytes;
 
         private readonly HashSet<string> _pendingPermissionRequests = new();
         private UsbPermissionReceiver usbPermissionReceiver;
@@ -299,6 +308,7 @@ namespace EsbImuReceiverToLan.Tracking.Trackers.HID
             int[] q = new int[4];
             int[] a = new int[3];
             int[] m = new int[3];
+            long localPackets = 0;
 
             while (!disposed)
             {
@@ -336,9 +346,11 @@ namespace EsbImuReceiverToLan.Tracking.Trackers.HID
                     }
 
                     int packetCount = bytesRead / PACKET_SIZE;
+                    _loopSw.Restart();
+                    long packetsInBatch = 0;
 
                     for (int i = 0; i < packetCount * PACKET_SIZE; i += PACKET_SIZE)
-                                {
+                    {
                                     int packetType = dataReceived[i];
                                     int id = dataReceived[i + 1];
                                     int trackerId = 0; // no extensions in this context
@@ -506,65 +518,93 @@ namespace EsbImuReceiverToLan.Tracking.Trackers.HID
                                     }
 
                                     // Rotation and acceleration
-                                    if (packetType == 1 || packetType == 4)
+                                    if (packetType == 1)
                                     {
-                                        // Convert Q15 short to float and reorder quaternion as x,y,z,w
                                         var rot = new Quaternion(
                                             q[0] / 32768f,
                                             q[1] / 32768f,
                                             q[2] / 32768f,
                                             q[3] / 32768f
                                         );
-
-                                        tracker.SetRotation(rot);
-                                    }
-
-                                    if (packetType == 2)
-                                    {
-                                        // Run this on a seperate thread in case its blocking?
-                                            float[] v = new float[3];
-                                            v[0] = q[0] / 1024f;
-                                            v[1] = q[1] / 2048f;
-                                            v[2] = q[2] / 2048f;
-
-                                            for (int x = 0; x < 3; x++)
-                                            {
-                                                v[x] = v[x] * 2 - 1;
-                                            }
-
-                                            float d = v[0] * v[0] + v[1] * v[1] + v[2] * v[2];
-                                            float invSqrtD = 1.0f / (float)Math.Sqrt(d + 1e-6f);
-                                            float aAngle = (float)(Math.PI / 2) * d * invSqrtD;
-                                            float s = (float)Math.Sin(aAngle);
-                                            float k = s * invSqrtD;
-
-                                            var rot = new Quaternion(
-                                                k * v[0],
-                                                k * v[1],
-                                                k * v[2],
-                                                (float)Math.Cos(aAngle)
-                                            );
-                                            tracker.SetRotation(rot);
-                                    }
-
-                                    if (packetType == 1 || packetType == 2)
-                                    {
                                         float scaleAccel = 1f / (1 << 7);
                                         Vector3 acceleration = new Vector3(a[0], a[1], a[2]) * scaleAccel;
-                                        tracker.SetAcceleration(Unsandwich(acceleration));
+                                        var acc = Unsandwich(acceleration);
+                                        if (tracker._ready && tracker._udpHandler is { disposed: false })
+                                        {
+                                            tracker._udpHandler.SetSensorBundleZero(rot, acc, 0);
+                                            tracker.CurrentRotation = rot;
+                                            tracker.CurrentAcceleration = acc;
+                                        }
                                     }
-
-                                    if (packetType == 4)
+                                    else if (packetType == 2)
                                     {
+                                        float[] v = new float[3];
+                                        v[0] = q[0] / 1024f;
+                                        v[1] = q[1] / 2048f;
+                                        v[2] = q[2] / 2048f;
+
+                                        for (int x = 0; x < 3; x++)
+                                            v[x] = v[x] * 2 - 1;
+
+                                        float d = v[0] * v[0] + v[1] * v[1] + v[2] * v[2];
+                                        float invSqrtD = 1.0f / (float)Math.Sqrt(d + 1e-6f);
+                                        float aAngle = (float)(Math.PI / 2) * d * invSqrtD;
+                                        float s = (float)Math.Sin(aAngle);
+                                        float k = s * invSqrtD;
+
+                                        var rot = new Quaternion(
+                                            k * v[0],
+                                            k * v[1],
+                                            k * v[2],
+                                            (float)Math.Cos(aAngle)
+                                        );
+                                        float scaleAccel = 1f / (1 << 7);
+                                        Vector3 acceleration = new Vector3(a[0], a[1], a[2]) * scaleAccel;
+                                        var acc = Unsandwich(acceleration);
+                                        if (tracker._ready && tracker._udpHandler is { disposed: false })
+                                        {
+                                            tracker._udpHandler.SetSensorBundleZero(rot, acc, 0);
+                                            tracker.CurrentRotation = rot;
+                                            tracker.CurrentAcceleration = acc;
+                                        }
+                                    }
+                                    else if (packetType == 4)
+                                    {
+                                        var rot = new Quaternion(
+                                            q[0] / 32768f,
+                                            q[1] / 32768f,
+                                            q[2] / 32768f,
+                                            q[3] / 32768f
+                                        );
+                                        if (tracker._ready && tracker._udpHandler is { disposed: false })
+                                        {
+                                            int len = tracker._udpHandler.packetBuilder.BuildRotationInto(rot, 0);
+                                            tracker._udpHandler.SendHotBuf(len);
+                                            tracker.CurrentRotation = rot;
+                                        }
                                         Vector3 magnetometer = new Vector3(m[0], m[1], m[2]) * (1000f / 1024f);
                                         device.MagnetometerStatus = MagnetometerStatus.ENABLED;
                                         tracker.SetMagVector(magnetometer);
                                     }
 
-                                    if (packetType == 1 || packetType == 2 || packetType == 4)
-                                    {
-                                        tracker.DataTick();
-                                    }
+                                    // DataTick() removed in matiaspalmac SlimeImuProtocol fork (was no-op)
+                                    packetsInBatch++;
+                                }
+                                _loopSw.Stop();
+                                Interlocked.Add(ref _totalLoopTicks, _loopSw.ElapsedTicks);
+                                Interlocked.Add(ref _packetsProcessed, packetsInBatch);
+                                int count = Interlocked.Increment(ref _loopCount);
+                                if (count >= 100)
+                                {
+                                    double avgMs = (_totalLoopTicks / (double)count) / TimeSpan.TicksPerMillisecond;
+                                    long pkts = Interlocked.Read(ref _packetsProcessed);
+                                    long nowAlloc = GC.GetTotalAllocatedBytes(false);
+                                    long deltaAlloc = nowAlloc - Interlocked.Read(ref _prevAllocBytes);
+                                    Interlocked.Exchange(ref _prevAllocBytes, nowAlloc);
+                                    Console.WriteLine($"[PERF] HID loop avg {avgMs:F3} ms over {count} calls ({pkts} pkts) | alloc: {deltaAlloc / 1024.0:F1} KB");
+                                    Interlocked.Exchange(ref _totalLoopTicks, 0);
+                                    Interlocked.Exchange(ref _loopCount, 0);
+                                    Interlocked.Exchange(ref _packetsProcessed, 0);
                                 }
                 }
                 catch (Exception e)
