@@ -216,8 +216,12 @@ void UsbHidHandler::loop() {
     return;
 
   hid_report_t *report = NULL;
-  // Process all pending report pointers off the data queue
-  while (xQueueReceive(hid_data_queue, &report, 0) == pdTRUE) {
+  int reportsProcessed = 0;
+  // Drain up to HID_MAX_REPORTS_PER_CYCLE to ensure slimeClient.loop()
+  // (heartbeats, handshakes, RX parsing) gets time in the next main loop
+  // iteration. Processing all at once would starve server communication.
+  while (reportsProcessed < HID_MAX_REPORTS_PER_CYCLE &&
+         xQueueReceive(hid_data_queue, &report, 0) == pdTRUE) {
     processHidData(_udpClient, report->hid_device, report->data,
                    report->length);
     updateActivity();
@@ -225,6 +229,7 @@ void UsbHidHandler::loop() {
     /* Recycling: Push the pointer back to the free queue for reuse by the USB
      * stack*/
     xQueueSend(free_report_queue, &report, 0);
+    reportsProcessed++;
   }
 }
 
