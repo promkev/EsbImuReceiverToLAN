@@ -27,7 +27,7 @@ typedef struct {
   size_t length;
 } hid_report_t;
 
-#define HID_REPORT_POOL_SIZE 32
+#define HID_REPORT_POOL_SIZE 64
 static hid_report_t hid_report_pool[HID_REPORT_POOL_SIZE];
 static QueueHandle_t hid_data_queue = NULL;
 static QueueHandle_t free_report_queue = NULL;
@@ -386,18 +386,15 @@ void processHidData(SlimeUdpClient *udpClient,
     if (vt) {
       vt->lastSendDataTime = millis();
 
-      // PPS Reduction: Alternate between Rotation and Acceleration
-      // instead of sending both every frame (halves packet pressure)
-      if (vt->updateCounter % 2 == 0) {
-        if (hasRotation) {
-          udpClient->sendRotation(trackerIndex, qx, qy, qz, qw);
-        }
-      } else {
-        if (hasAccel) {
-          udpClient->sendAcceleration(trackerIndex, ax, ay, az);
-        }
+      // Send both rotation and acceleration when available in the same packet.
+      // Per-type rate caps (MOVEMENT_RATE_CAP_MS) in sendRotation/sendAcceleration
+      // prevent flooding. No need to discard data with PPS alternation.
+      if (hasRotation) {
+        udpClient->sendRotation(trackerIndex, qx, qy, qz, qw);
       }
-      vt->updateCounter++;
+      if (hasAccel) {
+        udpClient->sendAcceleration(trackerIndex, ax, ay, az);
+      }
 
       if (hasBattery && batt != -1) {
         // Battery reporting is less time sensitive.
@@ -414,9 +411,11 @@ void processHidData(SlimeUdpClient *udpClient,
         }
       }
 
-      // Staggering: Give the Wi-Fi driver time to handle each packet
-      // to prevent filling the internal hardware queue too fast.
-      delayMicroseconds(400);
+#if MOVEMENT_PACKET_MIN_INTERVAL_US > 0
+      // Optional micro-delay between packets to pace WiFi TX queue.
+      // Only needed if experiencing ENOMEM errors under heavy multi-tracker load.
+      delayMicroseconds(MOVEMENT_PACKET_MIN_INTERVAL_US);
+#endif
     }
   }
 }

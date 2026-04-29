@@ -16,6 +16,10 @@
 #define MOVEMENT_THRESHOLD_QUAT 0.0001f   // Relaxed threshold for better rotation sensitivity
 #define MOVEMENT_THRESHOLD_ACCEL 0.05f    // Threshold for acceleration change (Euclidean distance)
 
+// Rate Limiting (per-tracker, per-data-type)
+#define MOVEMENT_RATE_CAP_MS 4            // Minimum interval between packets of the same type (4ms = 250Hz per type)
+#define MOVEMENT_PACKET_MIN_INTERVAL_US 0 // Microsecond delay between consecutive UDP sends (0 = disabled, use only if TX buffer errors occur)
+
 // Debug Output
 #define ENABLE_DEBUG_PRINT 1
 

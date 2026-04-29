@@ -84,11 +84,15 @@ void loop() {
     }
 
     if (wasConnected) {
+        // Process HID events FIRST to drain USB input queues with priority.
+        // This must run before slimeClient.loop() so incoming sensor data isn't
+        // delayed by RX packet parsing from the server.
+        usbHandler.loop();
+
+        // Process server communication (handshakes, heartbeats, RX parsing).
+        // Runs after HID drain to minimize data pipeline latency.
         slimeClient.loop();
     }
-
-    // Process USB HID events
-    usbHandler.loop();
 
     // HID Watchdog: Reboot if data stalls for too long
     if (usbInitialized && (millis() - usbHandler.getLastReportTime() > HID_WATCHDOG_TIMEOUT_MS)) {
