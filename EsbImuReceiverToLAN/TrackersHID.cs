@@ -390,35 +390,41 @@ namespace EsbImuReceiverToLan.Tracking.Trackers.HID
                                 if (svr_status != null) tracker.Status = (TrackerStatus)svr_status.Value;
                                 if (rssi != null) tracker.SignalStrength = -rssi.Value;
 
-                                if (packetType == 1 || packetType == 4)
+                                if (packetType == 1 || packetType == 2 || packetType == 4)
                                 {
-                                    var rot = new Quaternion(q[0] / 32768f, q[1] / 32768f, q[2] / 32768f, q[3] / 32768f);
-                                    tracker.SetRotation(rot);
-                                }
-                                if (packetType == 2)
-                                {
-                                    float[] v = new float[3];
-                                    v[0] = q[0] / 1024f; v[1] = q[1] / 2048f; v[2] = q[2] / 2048f;
-                                    for (int x = 0; x < 3; x++) v[x] = v[x] * 2 - 1;
-                                    float d = v[0] * v[0] + v[1] * v[1] + v[2] * v[2];
-                                    float invSqrtD = 1.0f / (float)Math.Sqrt(d + 1e-6f);
-                                    float aAngle = (float)(Math.PI / 2) * d * invSqrtD;
-                                    float s = (float)Math.Sin(aAngle);
-                                    float k = s * invSqrtD;
-                                    var rot = new Quaternion(k * v[0], k * v[1], k * v[2], (float)Math.Cos(aAngle));
-                                    tracker.SetRotation(rot);
-                                }
-                                if (packetType == 1 || packetType == 2)
-                                {
-                                    float scaleAccel = 1f / (1 << 7);
-                                    Vector3 acceleration = new Vector3(a[0], a[1], a[2]) * scaleAccel;
-                                    tracker.SetAcceleration(Unsandwich(acceleration));
-                                }
-                                if (packetType == 4)
-                                {
-                                    Vector3 magnetometer = new Vector3(m[0], m[1], m[2]) * (1000f / 1024f);
-                                    device.MagnetometerStatus = MagnetometerStatus.ENABLED;
-                                    tracker.SetMagVector(magnetometer);
+                                    // Build rotation quaternion
+                                    Quaternion rot;
+                                    if (packetType == 2)
+                                    {
+                                        float[] v = new float[3];
+                                        v[0] = q[0] / 1024f; v[1] = q[1] / 2048f; v[2] = q[2] / 2048f;
+                                        for (int x = 0; x < 3; x++) v[x] = v[x] * 2 - 1;
+                                        float d = v[0] * v[0] + v[1] * v[1] + v[2] * v[2];
+                                        float invSqrtD = 1.0f / (float)Math.Sqrt(d + 1e-6f);
+                                        float aAngle = (float)(Math.PI / 2) * d * invSqrtD;
+                                        float s = (float)Math.Sin(aAngle);
+                                        float k = s * invSqrtD;
+                                        rot = new Quaternion(k * v[0], k * v[1], k * v[2], (float)Math.Cos(aAngle));
+                                    }
+                                    else
+                                    {
+                                        rot = new Quaternion(q[0] / 32768f, q[1] / 32768f, q[2] / 32768f, q[3] / 32768f);
+                                    }
+
+                                    if (packetType == 1 || packetType == 2)
+                                    {
+                                        // Zero-allocation bundle send: rotation + acceleration in one call
+                                        float scaleAccel = 1f / (1 << 7);
+                                        Vector3 acceleration = new Vector3(a[0], a[1], a[2]) * scaleAccel;
+                                        tracker.SetBundleZero(rot, Unsandwich(acceleration));
+                                    }
+                                    else if (packetType == 4)
+                                    {
+                                        tracker.SetRotation(rot);
+                                        Vector3 magnetometer = new Vector3(m[0], m[1], m[2]) * (1000f / 1024f);
+                                        device.MagnetometerStatus = MagnetometerStatus.ENABLED;
+                                        tracker.SetMagVector(magnetometer);
+                                    }
                                 }
                                 if (packetType == 1 || packetType == 2 || packetType == 4) tracker.DataTick();
                             }
