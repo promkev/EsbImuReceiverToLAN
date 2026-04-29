@@ -48,6 +48,8 @@ namespace EsbImuReceiverToLan.Tracking.Trackers.HID
         private static long _totalLoopTicks;
         private static int _loopCount;
         private static long _packetsProcessed;
+        private static long _totalAllocBytes;
+        private static long _prevAllocBytes;
 
         private readonly HashSet<string> _pendingPermissionRequests = new();
         private UsbPermissionReceiver usbPermissionReceiver;
@@ -518,7 +520,6 @@ namespace EsbImuReceiverToLan.Tracking.Trackers.HID
                                     // Rotation and acceleration
                                     if (packetType == 1)
                                     {
-                                        // Convert Q15 short to float and reorder quaternion as x,y,z,w
                                         var rot = new Quaternion(
                                             q[0] / 32768f,
                                             q[1] / 32768f,
@@ -527,11 +528,16 @@ namespace EsbImuReceiverToLan.Tracking.Trackers.HID
                                         );
                                         float scaleAccel = 1f / (1 << 7);
                                         Vector3 acceleration = new Vector3(a[0], a[1], a[2]) * scaleAccel;
-                                        tracker.SetBundle(rot, Unsandwich(acceleration));
+                                        var acc = Unsandwich(acceleration);
+                                        if (tracker._ready && tracker._udpHandler is { disposed: false })
+                                        {
+                                            tracker._udpHandler.SetSensorBundleZero(rot, acc, 0);
+                                            tracker.CurrentRotation = rot;
+                                            tracker.CurrentAcceleration = acc;
+                                        }
                                     }
                                     else if (packetType == 2)
                                     {
-                                        // Compressed quaternion + acceleration
                                         float[] v = new float[3];
                                         v[0] = q[0] / 1024f;
                                         v[1] = q[1] / 2048f;
@@ -554,18 +560,28 @@ namespace EsbImuReceiverToLan.Tracking.Trackers.HID
                                         );
                                         float scaleAccel = 1f / (1 << 7);
                                         Vector3 acceleration = new Vector3(a[0], a[1], a[2]) * scaleAccel;
-                                        tracker.SetBundle(rot, Unsandwich(acceleration));
+                                        var acc = Unsandwich(acceleration);
+                                        if (tracker._ready && tracker._udpHandler is { disposed: false })
+                                        {
+                                            tracker._udpHandler.SetSensorBundleZero(rot, acc, 0);
+                                            tracker.CurrentRotation = rot;
+                                            tracker.CurrentAcceleration = acc;
+                                        }
                                     }
                                     else if (packetType == 4)
                                     {
-                                        // Convert Q15 short to float and reorder quaternion as x,y,z,w
                                         var rot = new Quaternion(
                                             q[0] / 32768f,
                                             q[1] / 32768f,
                                             q[2] / 32768f,
                                             q[3] / 32768f
                                         );
-                                        tracker.SetRotation(rot);
+                                        if (tracker._ready && tracker._udpHandler is { disposed: false })
+                                        {
+                                            int len = tracker._udpHandler.packetBuilder.BuildRotationInto(rot, 0);
+                                            tracker._udpHandler.SendHotBuf(len);
+                                            tracker.CurrentRotation = rot;
+                                        }
                                         Vector3 magnetometer = new Vector3(m[0], m[1], m[2]) * (1000f / 1024f);
                                         device.MagnetometerStatus = MagnetometerStatus.ENABLED;
                                         tracker.SetMagVector(magnetometer);
@@ -582,7 +598,10 @@ namespace EsbImuReceiverToLan.Tracking.Trackers.HID
                                 {
                                     double avgMs = (_totalLoopTicks / (double)count) / TimeSpan.TicksPerMillisecond;
                                     long pkts = Interlocked.Read(ref _packetsProcessed);
-                                    Console.WriteLine($"[PERF] HID packet loop avg {avgMs:F3} ms over {count} calls ({pkts} packets processed)");
+                                    long nowAlloc = GC.GetTotalAllocatedBytes(false);
+                                    long deltaAlloc = nowAlloc - Interlocked.Read(ref _prevAllocBytes);
+                                    Interlocked.Exchange(ref _prevAllocBytes, nowAlloc);
+                                    Console.WriteLine($"[PERF] HID loop avg {avgMs:F3} ms over {count} calls ({pkts} pkts) | alloc: {deltaAlloc / 1024.0:F1} KB");
                                     Interlocked.Exchange(ref _totalLoopTicks, 0);
                                     Interlocked.Exchange(ref _loopCount, 0);
                                     Interlocked.Exchange(ref _packetsProcessed, 0);

@@ -35,7 +35,7 @@ namespace EsbImuReceiverToLan.Tracking.Trackers.HID
         {
             hidLoader = new HidDeviceLoader();
 
-            _functionSequenceManager = new FunctionSequenceManager();
+            _functionSequenceManager = FunctionSequenceManager.Instance;
 
             deviceEnumerateThread = new Thread(DeviceEnumerateLoop)
             {
